@@ -1,0 +1,287 @@
+from os.path import join, isfile, isdir
+from os import listdir
+import numpy as np
+# import pathlib
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import tensorflow as tf
+from tensorflow.keras import layers, models
+# from tensorflow.keras import models
+from tensorflow.keras.layers.experimental import preprocessing
+
+AUTOTUNE = tf.data.experimental.AUTOTUNE # flag used to run tasks on more threads
+
+
+################################################################
+
+seed = 42
+tf.random.set_seed(seed)
+np.random.seed(seed)
+path = 'noiseanalyzer\\server\\driller\\'
+# categories = np.array(listdir(path)) # loads categorized datasets folders  # loads all files from all dataset categories
+categories = listdir(path)
+filenames = [join(path, category, file) for category in categories if isdir(join(path, category)) for file in listdir(join(path, category)) if isfile(join(path, category, file))]
+# filenames = (glob.glob(path + '/*/*')) 
+filenames = tf.random.shuffle(filenames)
+# filenames = np.array(np.random.shuffle(filenames))
+# filenames = np.array(filenames)
+# filenames = tf.io.gfile.glob(str(data_dir) + '/*/*') # loads all files from all dataset categories
+# filenames = tf.random.shuffle(filenames) # shuffle all files
+print(categories)
+num_of_samples = len(filenames) 
+# slicing dataset files to tranin, valid, test.
+train_files = filenames[:int((num_of_samples)*0.8)]
+validation_files = filenames[int((num_of_samples)*0.8):int((num_of_samples)*0.8+(num_of_samples)*0.1)]
+test_files = filenames[int(-(num_of_samples)*0.1):]
+print(f'train data: {len(train_files)}')
+print(f'validation data: {len(validation_files)}')
+print(f'test data: {len(test_files)}')
+print(f'Total: {len(train_files)+len(validation_files)+len(test_files)}')
+
+################################################################
+
+# def decode_audio(file_path):
+#     audio_binary = tf.io.read_file(file_path)
+#     audio, _ = tf.audio.decode_wav(audio_binary, desired_samples=22050)
+#     return tf.squeeze(audio, axis=-1)
+
+# def get_label(file_path):
+#     parts = tf.strings.split(file_path, os.path.sep)
+#     return parts[-2]
+
+# def get_wav_and_label(file_path):
+#     label = get_label(file_path)
+#     wav = decode_audio(file_path)
+#     return wav, label
+
+def load_record_with_label(path):
+    # audio_binary = tf.io.read_file(path)
+    data, _ = tf.audio.decode_wav(tf.io.read_file(path), desired_samples=22050)
+    return tf.squeeze(data, axis=-1), tf.strings.split(path, '\\')[-2]
+
+
+def load_spectrogram_with_label(record, label): #return spectrogram and coresponding label as idx of category
+    data = tf.cast(record, tf.float32)
+    spectrogram = tf.signal.stft(data, frame_length=1024, frame_step=512, window_fn=tf.signal.hann_window, pad_end=True)
+    spectrogram = tf.abs(spectrogram)
+    spectrogram = tf.expand_dims(spectrogram, -1)
+    label_id = tf.argmax(label == categories)
+    return spectrogram, label_id
+
+def create_dataset(files):
+    dataset = tf.data.Dataset.from_tensor_slices(files)
+    records_ds = dataset.map(load_record_with_label, num_parallel_calls=AUTOTUNE)
+    # spectrograms_ds = records_ds.map(load_spectrogram_with_label,  num_parallel_calls=AUTOTUNE)
+    return records_ds.map(load_spectrogram_with_label,  num_parallel_calls=AUTOTUNE)
+    # return spectrograms_ds
+
+train_dataset = create_dataset(train_files)
+validation_dataset = create_dataset(validation_files)
+test_dataset = create_dataset(test_files)
+print(len(train_dataset), len(validation_dataset), len(test_dataset))
+
+for spectrogram, _ in train_dataset.take(1):
+  shape = spectrogram.shape
+print(shape)
+
+
+################################################################
+
+def get_spectrogram(wav):
+    wav = tf.cast(wav, tf.float32)
+    spectrogram = tf.signal.stft(
+        wav, frame_length=255, frame_step=128, window_fn=tf.signal.hann_window)
+    spectrogram = tf.abs(spectrogram)
+    return spectrogram
+
+for wav, label in train_dataset.take(1):
+  label = label.numpy().decode('utf-8')
+  spectrogram = get_spectrogram(wav)
+
+print('Label:', label)
+print('Waveform shape:', wav.shape)
+print('Spectrogram shape:', spectrogram.shape)
+
+################################################################
+
+def plot_spectrogram(spectrogram, ax):
+    log_spec = np.log(spectrogram.T)
+    height = log_spec.shape[0]
+    X = np.arange(22050, height)
+    Y = range(height)
+    ax.pcolormesh(log_spec)
+
+fig, axes = plt.subplots(2, figsize=(12, 8))
+timescale = np.arange(wav.shape[0])
+axes[0].plot(timescale, wav.numpy())
+axes[0].set_title('Waveform')
+axes[0].set_xlim([0, 22050])
+plot_spectrogram(spectrogram.numpy(), axes[1])
+axes[1].set_title('Spectrogram')
+plt.show()
+
+################################################################
+
+rows, cols = 4, 4
+take = 0
+random_files = np.random.choice(filenames, int(rows*cols))
+print(random_files)
+
+fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(20, 12))
+
+fig.tight_layout() 
+
+for i in range(rows):
+    for j in range(cols):
+       sample_ds = create_dataset([random_files[take]])
+        for spectrogram, label in sample_ds.batch(1):
+            filename = str(random_files[take]).split(".")[0].split(os.path.sep)
+            filename = join(filename[-3], filename[-1])
+            label = categories[label[0]]
+            log_spec = np.log(np.squeeze(spectrogram.numpy()).T)
+            height = log_spec.shape[0]
+        #   X = np.arange(22050, height)
+        #   Y = range(height)
+            axes[i][j].pcolormesh(log_spec)
+            axes[i][j].title.set_text(f'{label.capitalize()} ({filename})')
+            take+=1
+    
+    plt.subplots_adjust(top=1.2)
+    plt.show()
+
+################################################################
+
+batch_size = 64
+train_dataset = train_dataset.batch(batch_size)
+validation_dataset = validation_dataset.batch(batch_size)
+
+# Add dataset cache() and prefetch() operations to reduce read latency while training the model.
+train_dataset = train_dataset.cache().prefetch(AUTOTUNE)
+validation_dataset = validation_dataset.cache().prefetch(AUTOTUNE)
+
+
+################################################################
+
+
+# norm_layer = preprocessing.Normalization()
+# norm_layer.adapt(train_dataset.map(lambda x, _: x))
+
+model = models.Sequential([
+    layers.Input(shape=shape),
+    preprocessing.Resizing(32, 32), 
+    # norm_layer,
+    # layers.Conv2D(filters=16, kernel_size=3, activation='relu'),
+    layers.Conv2D(filters=32, kernel_size=3, activation='relu'),
+    layers.MaxPooling2D(pool_size=2, strides=2, padding='valid'),
+    layers.Conv2D(64, 3, activation='relu'),
+    layers.MaxPooling2D(pool_size=2, strides=2, padding='valid'),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(len(categories)),
+])
+
+model.summary()
+
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=['accuracy'],
+)
+
+
+################################################################
+
+results = model.fit(
+    train_dataset,
+    validation_data=validation_dataset,  
+    epochs=10,
+    # callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+)
+
+################################################################
+
+history = results.history
+plt.plot(results.epoch, history['loss'], history['val_loss'])
+plt.legend(['loss', 'val_loss'])
+plt.show()
+
+
+
+################################################################
+
+test_audio = []
+test_labels = []
+
+for audio, label in test_dataset:
+  test_audio.append(audio.numpy())
+  test_labels.append(label.numpy())
+
+test_audio = np.array(test_audio)
+test_labels = np.array(test_labels)
+
+
+################################################################
+
+
+predictions = np.argmax(model.predict(test_audio), axis=1)
+true_labels = test_labels
+    
+accuracy = sum(predictions == true_labels) / len(true_labels)
+print(f'Test set accuracy: {accuracy:.0%}')
+
+
+################################################################
+
+confusion_mtx = tf.math.confusion_matrix(test_labels, predictions) 
+plt.figure(figsize=(10, 8))
+# plt.matshow(confusion_mtx)
+sns.heatmap(data=confusion_mtx, xticklabels=categories, yticklabels=categories, 
+            annot=True)
+plt.xlabel('Prediction')
+plt.ylabel('Label')
+plt.show()
+
+
+################################################################
+
+
+# sample_file = data_dir'/level3/audio_44.wav'
+rows, cols = 4, 4
+take = 0
+random_files = np.random.choice(filenames, int(rows*cols))
+print(random_files)
+fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(20, 12))
+fig.tight_layout()
+
+for i in range(rows):
+  for j in range(cols):
+    sample_ds = create_dataset([random_files[take]])
+    for spectrogram, label in sample_ds.batch(1):
+        prediction = model(spectrogram)
+        label = categories[label[0]]
+        axes[i][j].bar(categories, tf.nn.softmax(prediction[0]))
+        filename = str(random_files[take]).split(".")[0].split(os.path.sep)
+        filename = join(filename[-3], filename[-1])
+        axes[i][j].title.set_text(f'{label.capitalize()} ({filename})')
+        take+=1
+plt.subplots_adjust(top=1.2)
+plt.show()
+
+# sample_file = 'server\\driller\\level_5\\audio_168.wav'
+
+# sample_ds = preprocess_dataset([str(sample_file)])
+
+# for spectrogram, label in sample_ds.batch(1):
+#   prediction = model(spectrogram)
+#   print(label[0])
+#   print(prediction[0])
+#   plt.bar(categories, tf.nn.softmax(prediction[0]))
+#   plt.title(f'Predictions for "{categories[label[0]]}"')
+#   plt.show()
+
+
+model.save('nn_models/driller')

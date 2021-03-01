@@ -1,4 +1,5 @@
 import librosa
+from librosa.display import specshow
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.fftpack import fft, rfft, fftfreq
@@ -9,11 +10,11 @@ import time
 
 start = time.time()
 # samples0, sr = librosa.load(f'./datasets/rooms_white_noise/my_bedroom/audio_126.wav', sr=16000)
-samples0, sr = librosa.load('16bit_256len_65count_4096buffer32/record_amplifiedby16.wav', sr=16000) # downsample by half to get nice spectrogram
+# samples0, sr = librosa.load('16bit_256len_65count_4096buffer32/record_amplifiedby16.wav', sr=16000) # downsample by half to get nice spectrogram
 # samples0, sr = librosa.load('Recording_3.wav', sr=16000) # downsample by half to get nice spectrogram
 # samples0, sr = librosa.load('record_mirroring.wav', sr=22050) # downsample by half to get nice spectrogram
-samples0, sr = librosa.load('e/audio_4.wav', sr=16000)
-samples0, sr = librosa.load('mini_speech_commands\\right\\0ab3b47d_nohash_0.wav', sr=22050)
+samples0, sr = librosa.load('trtr/cat1/audio_0.wav', sr=16000)
+# samples0, sr = librosa.load('mini_speech_commands\\right\\0ab3b47d_nohash_0.wav', sr=22050)
 # samples0 = samples0[:sr]
 # wav.write("e.wav", sr, np.array(samples0))
 
@@ -21,8 +22,12 @@ samples0, sr = librosa.load('mini_speech_commands\\right\\0ab3b47d_nohash_0.wav'
     
 # with open('data.txt', 'w') as f:
 #     f.write(str(samples0))
-    
-# exit()
+# s = np.abs(librosa.stft(samples0))
+# fig, ax = plt.subplots()
+# img =specshow(librosa.amplitude_to_db(s,ref=np.max), y_axis='log', x_axis='time', ax=ax)
+# ax.set_title('Power spectrogram')
+# fig.colorbar(img, ax=ax, format="%+2.0f dB")
+
 print(sr, len(samples0))
 samples = []
 n = 1

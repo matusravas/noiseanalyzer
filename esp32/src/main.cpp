@@ -45,7 +45,6 @@ void upload_data(uint8_t *wav_file_ptr)
         Serial.println("Connection to server failed, retrying...");
         delay(500);
     }
-    
     // Upload data to server
     client.write(wav_file_ptr, WAV_FILE_SIZE);
     
@@ -139,9 +138,10 @@ void read_data(uint8_t *wav_file_ptr)
     i2s_read(I2S_PORT, (void*)buffer32, sizeof(buffer32), &bytes_read, portMAX_DELAY); //change timeout to 100 if needed
     samples_read = bytes_read>>2; // was /4
     for (uint32_t i=0; i<samples_read; i++) {
-      uint8_t mid = buffer32[i * 4 + 2]; 
+      uint8_t lsb = buffer32[i * 4 + 2]; 
       uint8_t msb = buffer32[i * 4 + 3];
-      uint16_t raw = ((((uint16_t)msb) << 8) | ((uint16_t)mid)) <<4; // *16;
+      uint16_t raw = ((((uint16_t)msb) << 8) | ((uint16_t)lsb)) <<4; // *16;
+      // uint16_t raw = (((uint32_t)msb) << 8) + ((uint32_t)lsb);
 
       if(samples_written < WAV_FILE_SAMPLES){
         wav_file_ptr[WAV_FILE_HEADER_SIZE+(samples_written*2)] = (uint8_t)raw&0xFF;

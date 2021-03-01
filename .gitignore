@@ -5,6 +5,8 @@ esp32/.pio/
 esp32/.pio/*
 esp32/.gitignore
 
+__pycache__/
+
 server/records/*
 server/datasets/*
 server/.vscode/

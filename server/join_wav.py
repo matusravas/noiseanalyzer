@@ -2,7 +2,7 @@ import wave
 from os import listdir
 from os.path import isfile, join
 # path = 'driller\\level_3\\'
-path = 'test\\'
+path = 'trtr\\'
 files = [f for f in listdir(path) if isfile(join(path, f)) and not f.endswith('.csv') and not f.endswith('.rar') and not f.startswith('record')]
 
 def __sort_by(item):

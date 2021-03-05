@@ -8,6 +8,10 @@ warnings.filterwarnings("error")
 
 folder = 'test\\'
 files = [join(folder, path) for path in listdir(folder) if isfile(join(folder, path))]
+sr = 16000
+limit = int(sr//1000)
+print(limit)
+
 
 num_of_removed = 0
 removed_files = []
@@ -26,12 +30,12 @@ files.sort(key=__sort_by)
 for file in files:
     try:
         # sr, data = wavfile.read(file)
-        data, sr = librosa.load(file, sr=16000) # downsample by half to get nice spectrogram
-        # if len(data) < 44100:
-        #     remove_corrupted(file, num_of_removed, removed_files)
-        for idx in range(16, len(data), 16):
+        data, sr = librosa.load(file, sr=sr) # downsample by half to get nice spectrogram
+        if len(data) < sr:
+            remove_corrupted(file, num_of_removed, removed_files)
+        for idx in range(limit, len(data), limit):
             res = 0
-            for i in range(0,16):
+            for i in range(0,limit):
                 res += np.abs(data[idx-i])
             if res == 0:
                 # print(idx)

@@ -7,7 +7,7 @@ app = Flask (__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet') #async_mode='threading'
 
 clients = []
-categories =['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_octavia', 'engine_passat']
+categories = ['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_motorcycle', 'engine_octavia', 'engine_passat']
 
 @socketio.on('connect')
 def connect():
@@ -38,10 +38,6 @@ def run_socket():
     
     PORT = int(os.environ.get('PORT', '8082'))
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # categories =['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_octavia', 'engine_passat']
-
-
-    
     server.bind(('0.0.0.0', PORT))
     server.listen(5)
     size = 64
@@ -73,12 +69,20 @@ def run_socket():
                 predicted_val = model(spectrogram) #predict
                 prediction = np.argmax(predicted_val[0])
                 predictions = tf.nn.softmax(predicted_val[0])
+                predictions = predictions.numpy().tolist()
+                percent = int(np.max(predictions) * 100)
+                error = True if prediction < 0.75 else False
                 category = categories[prediction]
                 print(category, prediction)
-                print(time.time() - start)
-                print(predictions)
-                # socketio.emit('data', {'prediction': f'{prediction}', 'label': f'{category}', 'samples': samples.numpy().tolist()})
-                socketio.emit('data', {'prediction': f'{prediction}', 'label': f'{category}', 'predictions': predictions.numpy().tolist()})
+                # print(time.time() - start)
+                # print(predictions)
+                socketio.emit('data', 
+                              {'prediction': f'{prediction}', 
+                               'label': f'{category}', 
+                               'predictions': list(map(lambda pred: pred*100, predictions)), 
+                               'error': error,
+                            #    'percent': percent
+                               })
             except Exception as e:
                 socketio.emit('error', {'msg': 'hola'})
                 print(type(e), e)

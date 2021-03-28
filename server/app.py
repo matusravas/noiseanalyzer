@@ -7,11 +7,12 @@ app = Flask (__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet') #async_mode='threading'
 
 clients = []
+categories =['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_octavia', 'engine_passat']
 
 @socketio.on('connect')
 def connect():
     print ('client connected')
-    emit('data', {'msg': 'hi'})
+    emit('categories', categories)
     print(request.sid)
     clients.append(request.sid)
 
@@ -37,7 +38,7 @@ def run_socket():
     
     PORT = int(os.environ.get('PORT', '8082'))
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    categories =['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_octavia', 'engine_passat']
+    # categories =['engine_fabia1_0', 'engine_fabia1_4', 'engine_golf', 'engine_octavia', 'engine_passat']
 
 
     
@@ -45,8 +46,7 @@ def run_socket():
     server.listen(5)
     size = 64
     print('Server listening on port: {}'.format(PORT))
-    timed_out = []
-    idx = 0
+    # idx = 0
     try:
         while True:
             client, addr = server.accept()
@@ -55,11 +55,11 @@ def run_socket():
             buffer = io.BytesIO()
             try:
                 start = time.time()
-                cycles = 0
-                idx += 1
+                # cycles = 0
+                # idx += 1
                 while True:
                     data = client.recv(size)
-                    cycles += 1
+                    # cycles += 1
                     buffer.write(data)
                     if data == b'':
                         break
@@ -70,14 +70,17 @@ def run_socket():
                 spectrogram = tf.signal.stft(data, frame_length=1024, frame_step=512)
                 spectrogram = tf.abs(spectrogram)
                 spectrogram = tf.expand_dims(spectrogram, -1)
-                prediction = model(spectrogram) #predict
-                prediction = np.argmax(prediction[0])
+                predicted_val = model(spectrogram) #predict
+                prediction = np.argmax(predicted_val[0])
+                predictions = tf.nn.softmax(predicted_val[0])
                 category = categories[prediction]
                 print(category, prediction)
                 print(time.time() - start)
-                socketio.emit('data', {'prediction': f'{prediction}', 'label': f'{category}', 'samples': samples.numpy().tolist()})
+                print(predictions)
+                # socketio.emit('data', {'prediction': f'{prediction}', 'label': f'{category}', 'samples': samples.numpy().tolist()})
+                socketio.emit('data', {'prediction': f'{prediction}', 'label': f'{category}', 'predictions': predictions.numpy().tolist()})
             except Exception as e:
-                socketio.emit('data', {'msg': f'hola {idx}'})
+                socketio.emit('error', {'msg': 'hola'})
                 print(type(e), e)
             client.close()
             
